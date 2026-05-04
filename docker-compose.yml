@@ -26,7 +26,7 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__Default=Host=db;Port=5432;Database=solarwatch;Username=postgres;Password=postgres
-      - OpenWeather__ApiKey=90f4e53ec2c66ac306de8e41af3e6ecb
+      - OpenWeather__ApiKey=${OPENWEATHER_API_KEY}
     depends_on:
       db:
         condition: service_healthy
