@@ -8,17 +8,12 @@ namespace SolarWatch.Controllers;
 [Route("api/solarwatch")]
 public class SolarWatchController : ControllerBase
 {
-    private readonly IGeocodingService _geocodingService;
-    private readonly ISunriseSunsetService _sunriseSunsetService;
+    private readonly ISolarWatchService _solarWatchService;
     private readonly ILogger<SolarWatchController> _logger;
 
-    public SolarWatchController(
-        IGeocodingService geocodingService,
-        ISunriseSunsetService sunriseSunsetService,
-        ILogger<SolarWatchController> logger)
+    public SolarWatchController(ISolarWatchService solarWatchService, ILogger<SolarWatchController> logger)
     {
-        _geocodingService = geocodingService;
-        _sunriseSunsetService = sunriseSunsetService;
+        _solarWatchService = solarWatchService;
         _logger = logger;
     }
 
@@ -34,15 +29,8 @@ public class SolarWatchController : ControllerBase
 
         try
         {
-            var coordinates = await _geocodingService.GetCoordinatesAsync(city);
-            var sunriseSunset = await _sunriseSunsetService.GetSunriseSunsetAsync(
-                coordinates.Lat, coordinates.Lon, resolvedDate);
-
-            return Ok(new SolarWatchResponse(
-                coordinates.Name,
-                resolvedDate,
-                sunriseSunset.Sunrise,
-                sunriseSunset.Sunset));
+            var response = await _solarWatchService.GetSunriseSunsetAsync(city, resolvedDate);
+            return Ok(response);
         }
         catch (ArgumentException e)
         {
