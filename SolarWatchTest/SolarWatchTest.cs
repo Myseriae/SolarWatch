@@ -11,16 +11,39 @@ namespace SolarWatchTest;
 [TestFixture]
 public class SolarWatchControllerTests
 {
-    private Mock<ISolarWatchService> _solarWatchServiceMock;
+    private Mock<IGeocodingService> _geocodingServiceMock;
+    private Mock<ISunriseSunsetService> _sunriseSunsetServiceMock;
     private Mock<ILogger<SolarWatchController>> _loggerMock;
+    private Mock<ICityRepository> _cityRepositoryMock;
+    private Mock<ISunriseSunsetRepository> _sunriseSunsetRepositoryMock;
     private SolarWatchController _controller;
+
+    private static readonly City FakeCity = new()
+    {
+        Id = 1, Name = "Budapest", Lat = 47.5, Lon = 19.0, State = "Budapest", Country = "HU"
+    };
+
+    private static readonly SunriseSunset FakeSunriseSunset = new()
+    {
+        Id = 1, CityId = 1, Date = "2024-06-01",
+        Sunrise = "2024-06-01T04:00:00+00:00", Sunset = "2024-06-01T19:00:00+00:00"
+    };
 
     [SetUp]
     public void SetUp()
     {
-        _solarWatchServiceMock = new Mock<ISolarWatchService>();
-        _loggerMock = new Mock<ILogger<SolarWatchController>>();
-        _controller = new SolarWatchController(_solarWatchServiceMock.Object, _loggerMock.Object);
+        _geocodingServiceMock        = new Mock<IGeocodingService>();
+        _sunriseSunsetServiceMock    = new Mock<ISunriseSunsetService>();
+        _loggerMock                  = new Mock<ILogger<SolarWatchController>>();
+        _cityRepositoryMock          = new Mock<ICityRepository>();
+        _sunriseSunsetRepositoryMock = new Mock<ISunriseSunsetRepository>();
+
+        _controller = new SolarWatchController(
+            _geocodingServiceMock.Object,
+            _sunriseSunsetServiceMock.Object,
+            _loggerMock.Object,
+            _cityRepositoryMock.Object,
+            _sunriseSunsetRepositoryMock.Object);
     }
 
     [Test]
@@ -33,8 +56,11 @@ public class SolarWatchControllerTests
     [Test]
     public async Task Get_ReturnsNotFound_WhenServiceThrowsArgumentException()
     {
-        _solarWatchServiceMock
-            .Setup(x => x.GetSunriseSunsetAsync(It.IsAny<string>(), It.IsAny<string>()))
+        _cityRepositoryMock
+            .Setup(r => r.GetByNameAsync(It.IsAny<string>()))
+            .ReturnsAsync((City?)null);
+        _geocodingServiceMock
+            .Setup(s => s.GetCoordinatesAsync(It.IsAny<string>()))
             .ThrowsAsync(new ArgumentException("City not found"));
 
         var result = await _controller.Get("NonExistentCity123");
@@ -44,26 +70,26 @@ public class SolarWatchControllerTests
     [Test]
     public async Task Get_ReturnsOk_WithCorrectData_WhenServiceSucceeds()
     {
-        var response = new SolarWatchResponse("Budapest", "2024-06-01",
-            "2024-06-01T04:00:00+00:00", "2024-06-01T19:00:00+00:00");
-
-        _solarWatchServiceMock
-            .Setup(x => x.GetSunriseSunsetAsync("Budapest", It.IsAny<string>()))
-            .ReturnsAsync(response);
+        _cityRepositoryMock
+            .Setup(r => r.GetByNameAsync("Budapest"))
+            .ReturnsAsync(FakeCity);
+        _sunriseSunsetRepositoryMock
+            .Setup(r => r.GetByCityAndDateAsync(1, "2024-06-01"))
+            .ReturnsAsync(FakeSunriseSunset);
 
         var result = await _controller.Get("Budapest", "2024-06-01");
 
         Assert.IsInstanceOf<OkObjectResult>(result.Result);
         var value = (SolarWatchResponse)((OkObjectResult)result.Result!).Value!;
         Assert.That(value.City, Is.EqualTo("Budapest"));
-        Assert.That(value.Sunrise, Is.EqualTo(response.Sunrise));
+        Assert.That(value.Sunrise, Is.EqualTo(FakeSunriseSunset.Sunrise));
     }
 
     [Test]
     public async Task Get_Returns500_WhenServiceThrowsUnexpectedException()
     {
-        _solarWatchServiceMock
-            .Setup(x => x.GetSunriseSunsetAsync(It.IsAny<string>(), It.IsAny<string>()))
+        _cityRepositoryMock
+            .Setup(r => r.GetByNameAsync(It.IsAny<string>()))
             .ThrowsAsync(new Exception("Unexpected"));
 
         var result = await _controller.Get("Budapest");
@@ -118,10 +144,10 @@ public class SolarWatchServiceTests
 
         _cityRepositoryMock
             .Setup(r => r.AddAsync(It.IsAny<City>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync((City city) => city);
         _sunriseSunsetRepositoryMock
             .Setup(r => r.AddAsync(It.IsAny<SunriseSunset>()))
-            .Returns(Task.CompletedTask);
+            .ReturnsAsync((SunriseSunset ss) => ss);
 
         _service = new SolarWatchService(
             _geocodingServiceMock.Object,
