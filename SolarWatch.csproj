@@ -21,6 +21,13 @@
 
     <ItemGroup>
         <Compile Remove="SolarWatchTest\**" />
+        <Content Remove="SolarWatchTest\**" />
+        <None Remove="SolarWatchTest\**" />
+        <EmbeddedResource Remove="SolarWatchTest\**" />
+        <Compile Remove="SolarWatch.IntegrationTests\**" />
+        <Content Remove="SolarWatch.IntegrationTests\**" />
+        <None Remove="SolarWatch.IntegrationTests\**" />
+        <EmbeddedResource Remove="SolarWatch.IntegrationTests\**" />
     </ItemGroup>
 
 </Project>
