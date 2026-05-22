@@ -113,7 +113,8 @@ async Task ApplyMigrationsAsync()
 {
     using var scope = app.Services.CreateScope();
     var context     = scope.ServiceProvider.GetRequiredService<SolarWatchDbContext>();
-    await context.Database.MigrateAsync();
+    if (context.Database.IsRelational())
+        await context.Database.MigrateAsync();
 }
 
 public partial class Program { }

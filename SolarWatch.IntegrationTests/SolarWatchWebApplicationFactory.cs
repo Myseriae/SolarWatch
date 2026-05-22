@@ -1,11 +1,14 @@
 using System.Net;
 using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
+using Microsoft.IdentityModel.Tokens;
 using SolarWatch.Data;
 using SolarWatch.Services;
 
@@ -30,13 +33,28 @@ public class SolarWatchWebApplicationFactory : WebApplicationFactory<Program>
 
         builder.ConfigureTestServices(services =>
         {
-            var dbDescriptor = services.SingleOrDefault(
-                d => d.ServiceType == typeof(DbContextOptions<SolarWatchDbContext>));
-            if (dbDescriptor != null)
-                services.Remove(dbDescriptor);
+            // ConfigureAppConfiguration runs after AddAuthentication() captures the signing key
+            // from config, so we must override the validation key here where we have final say.
+            services.Configure<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme, options =>
+            {
+                options.TokenValidationParameters.IssuerSigningKey =
+                    new SymmetricSecurityKey(
+                        Encoding.UTF8.GetBytes("integration-test-signing-key-32chars!"));
+            });
 
-            services.AddDbContext<SolarWatchDbContext>(options =>
-                options.UseInMemoryDatabase(_dbName));
+            // Remove existing DbContext registrations. Calling AddDbContext a second time
+            // (even for a different provider) adds both providers' infrastructure services
+            // to the application service collection, which EF Core rejects at runtime.
+            // Registering the context directly with isolated options avoids this conflict.
+            services.RemoveAll(typeof(SolarWatchDbContext));
+            services.RemoveAll(typeof(DbContextOptions<SolarWatchDbContext>));
+            services.RemoveAll(typeof(DbContextOptions));
+
+            services.AddScoped<SolarWatchDbContext>(_ =>
+                new SolarWatchDbContext(
+                    new DbContextOptionsBuilder<SolarWatchDbContext>()
+                        .UseInMemoryDatabase(_dbName)
+                        .Options));
 
             using var sp = services.BuildServiceProvider();
             using var scope = sp.CreateScope();
